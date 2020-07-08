@@ -6,10 +6,19 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable
+use Tymon\JWTAuth\Contracts\JWTSubject;
+class User extends Authenticatable implements JWTSubject
 {
     use Notifiable;
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
 
+    public function getJWTCustomClaims()
+    {
+        return [];
+    }
     /**
      * The attributes that are mass assignable.
      *
@@ -43,4 +52,5 @@ class User extends Authenticatable
     {
         return $this->hasMany(Product::class);
     }
+
 }

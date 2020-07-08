@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use JWTAuth;
 use App\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Requests\RegisterAuthRequest;
 use Tymon\JWTAuth\Exceptions\JWTException;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,6 +20,7 @@ class ApiController extends Controller
      */
     public function register(RegisterAuthRequest $request)
     {
+
         $user = new User();
         $user->name = $request->name;
         $user->email = $request->email;
@@ -28,55 +30,34 @@ class ApiController extends Controller
         if ($this->loginAfterSignUp) {
             return $this->login($request);
         }
+
     }
 
     /**
-     * @param Request $request
+     * Get a JWT token via given credentials.
+     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function login(Request $request)
     {
-        $input = $request->only('email', 'password');
-        $jwt_token = null;
+        $credentials = $request->only('email', 'password');
 
-        if(!$jwt_token = JWTAuth::attempt($input)){
-            return response() ->json([
-               'successs' => false,
-                'message' => 'Invalid Email or Password'
-            ], Response::HTTP_UNAUTHORIZED);
+        if ($token = $this->guard()->attempt($credentials)) {
+            return $this->respondWithToken($token);
         }
 
-        return response()->json([
-           'success' => true,
-           'token' =>  $jwt_token
-        ]);
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
 
     /**
-     * @param Request $request
+     * Log the user out (Invalidate the token)
      * @return \Illuminate\Http\JsonResponse
-     * @throws \Illuminate\Validation\ValidationException
      */
-    public function logout(Request $request){
-        $this->validate($request,[
-           'token' => 'required'
-        ]);
+    public function logout()
+    {
+        $this->guard()->logout();
 
-        try {
-            JWTAuth::invalidate($request->token);
-            return response()->json([
-               'success' => true,
-               'message' => 'User logged out successfully'
-            ]);
-
-
-        }catch (JWTException $e){
-            return response()->json([
-                'success' => false,
-                'message' => 'Sorry, the user cannot be logged out'
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
-
+        return response()->json(['message' => 'Successfully logged out']);
     }
 
     /**
@@ -94,4 +75,37 @@ class ApiController extends Controller
         return response()->json(['user'=>$user]);
     }
 
+
+    /**
+     * Refresh a token.
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function refresh()
+    {
+        return $this->respondWithToken($this->guard()->refresh());
+    }
+
+    /**
+     * Get the token array structure.
+     * @param  string $token
+     * @return \Illuminate\Http\JsonResponse
+     */
+    protected function respondWithToken($token)
+    {
+        return response()->json([
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => $this->guard()->factory()->getTTL() * 60
+        ]);
+    }
+
+    /**
+     * Get the guard to be used during authentication.
+     *
+     * @return \Illuminate\Contracts\Auth\Guard
+     */
+    public function guard()
+    {
+        return Auth::guard();
+    }
 }
